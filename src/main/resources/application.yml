@@ -31,7 +31,7 @@ memind:
     #   DeepSeek : OPENAI_BASE_URL=https://api.deepseek.com  OPENAI_CHAT_MODEL=deepseek-chat
     #   通义千问  : OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
     #              OPENAI_CHAT_MODEL=qwen-plus
-    base-url: ${OPENAI_BASE_URL:https://llm-le499bxihbee1gji.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}
+    base-url: ${OPENAI_BASE_URL:https://xxx.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}
     # 密钥只从环境变量读，不写进仓库；缺省为空，未配置时对话能力不可用（健康检查会显示 chatAvailable=false）
     api-key: ${OPENAI_API_KEY:}
     chat-model: ${OPENAI_CHAT_MODEL:qwen3.7-flash}
