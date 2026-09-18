@@ -1,0 +1,102 @@
+server:
+  port: 8366
+
+spring:
+  application:
+    name: memind
+  datasource:
+    # 本地 PostgreSQL 17 + pgvector；库与角色由 src/main/resources/db/setup.sql 一次性创建
+    url: ${MEMIND_DATASOURCE_URL:jdbc:postgresql://localhost:5432/memind}
+    driver-class-name: org.postgresql.Driver
+    username: ${MEMIND_DATASOURCE_USERNAME:memind}
+    password: ${MEMIND_DATASOURCE_PASSWORD:memind}
+    hikari:
+      pool-name: memind-pool
+      maximum-pool-size: 10
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: false
+  mvc:
+    async:
+      # 思考模型首字延迟很长（先吐 reasoning 再吐 content），默认 30s 会把 SSE 连接掐断
+      request-timeout: 180s
+
+memind:
+  # 向量维度单一来源：同时驱动本地降级向量、pgvector 列维度与近邻索引
+  embedding-dimension: ${MEMIND_EMBEDDING_DIMENSION:1024}
+  llm:
+    # 对话能力：国内模型均兼容 OpenAI 协议，按需覆盖环境变量即可
+    #   DeepSeek : OPENAI_BASE_URL=https://api.deepseek.com  OPENAI_CHAT_MODEL=deepseek-chat
+    #   通义千问  : OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+    #              OPENAI_CHAT_MODEL=qwen-plus
+    base-url: ${OPENAI_BASE_URL:https://llm-le499bxihbee1gji.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}
+    # 密钥只从环境变量读，不写进仓库；缺省为空，未配置时对话能力不可用（健康检查会显示 chatAvailable=false）
+    api-key: ${OPENAI_API_KEY:}
+    chat-model: ${OPENAI_CHAT_MODEL:qwen3.7-flash}
+    timeout-seconds: 60
+    temperature: 0.2
+    # 向量能力：地址与密钥独立于对话能力，可指向内网推理服务
+    embedding:
+      # remote=强制远程（生产建议，失败即报错，避免静默降级）
+      # local =强制本地（离线测试）
+      # auto  =有 api-key 走远程，否则本地
+      mode: ${MEMORY_EMBED_MODE:remote}
+      base-url: ${EMBED_BASE_URL:http://192.168.0.237:21434/v1}
+      api-key: ${EMBED_API_KEY:ollama}
+      model: ${EMBED_MODEL:qllama/bge-large-zh-v1.5:latest}
+      # 必须与上面的 embedding-dimension 保持一致，否则启动即失败
+      dimension: ${EMBED_DIM:1024}
+      timeout-ms: 10000
+      max-retries: 2
+  chat:
+    # 单轮对话内最多几次「模型 → 工具 → 模型」往返，到顶后强制一次不带 tools 的调用收尾
+    max-rounds: ${MEMIND_CHAT_MAX_ROUNDS:4}
+    # 单个工具的执行上限，超时以可读错误回灌给模型。
+    # 联网工具（get_weather / search_web）要跑真实 HTTP：geocoding 约 3s + forecast 约 5s，
+    # 3s 的老默认值会让它们必然超时，因此放宽到 15s。
+    tool-timeout-ms: ${MEMIND_CHAT_TOOL_TIMEOUT_MS:15000}
+    # 流结束后自动把本轮对话（USER）与工具轨迹（AGENT）写回记忆
+    writeback: ${MEMIND_CHAT_WRITEBACK:true}
+  extraction:
+    chunk-size: 1200
+    min-confidence: 0.5
+    max-items-per-chunk: 12
+  consolidation:
+    # 触发 Leaf 提炼所需的最小记忆条数
+    leaf-min-items: 2
+    # 每次整合最多产出的 Branch 洞察数
+    branch-max-insights: 3
+    # 写入后立即异步整合
+    immediate: true
+    # 每日凌晨批量整合（对齐文档 8.1 批量整合策略）
+    cron: "0 0 3 * * *"
+  retrieval:
+    vector-top-k: 20
+    bm25-top-k: 20
+    insight-top-k: 8
+    final-top-k: 15
+    rrf-k: 60
+    time-decay-half-life-days: 30
+    min-confidence: 0.35
+    # 与本轮问题的相关性下限（原始余弦相似度）。RRF 只看排名不看相关性，没有这道闸门时
+    # 无关记忆会稳定地占满上下文。0.42 是拿 bge-large-zh-v1.5 实测标定的：
+    #   同一问题的相关条目 0.44~0.69，无关条目 0.12~0.39（中文句对本身有约 0.3 的底噪）。
+    # 调高更干净但会漏掉弱相关，调低会更全但噪声回潮。
+    min-relevance: ${MEMIND_RETRIEVAL_MIN_RELEVANCE:0.42}
+    # 洞察最多占用的上下文预算比例：抽象理解优先但不许独占，保证具体事实有位置
+    insight-budget-share: ${MEMIND_RETRIEVAL_INSIGHT_BUDGET_SHARE:0.45}
+    context-token-budget: 1200
+    strategy: SIMPLE
+  storage:
+    # HNSW：在线增量写入下召回更稳；IVFFlat：索引更小、构建更快；NONE：退化为顺序扫描
+    vector-index: ${MEMIND_VECTOR_INDEX:HNSW}
+    # 仅 IVFFlat 生效；经验值 rows/1000（不超过 1000 时建议取 rows/100）
+    ivfflat-lists: ${MEMIND_IVFFLAT_LISTS:100}
+    # HNSW 查询期的候选队列长度，越大召回越高、延迟越大
+    hnsw-ef-search: ${MEMIND_HNSW_EF_SEARCH:100}
+
+logging:
+  level:
+    com.trae.memind: INFO

@@ -1,0 +1,1 @@
+{"status":"UP","version":"0.1.0","llmProvider":"chat=openai-compatible:https://llm-le499bxihbee1gji.cn-beijing.maas.aliyuncs.com/compatible-mode/v1#qwen3.7-flash, embedding=openai-compatible:http://192.168.0.237:21434/v1#qllama/bge-large-zh-v1.5:latest","chatAvailable":true,"embeddingRemote":true}

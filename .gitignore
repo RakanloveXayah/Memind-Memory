@@ -1,0 +1,17 @@
+# 构建产物
+target/
+*.class
+
+# IDE 与本地工作区
+.idea/
+*.iml
+.vscode/
+.trae/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志与临时文件
+*.log
+*.tmp

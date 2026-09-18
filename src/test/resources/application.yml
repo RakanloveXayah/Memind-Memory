@@ -1,0 +1,71 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: memind
+  datasource:
+    # 测试同样跑真实 PostgreSQL（memind_test 库），保持与生产单代码路径
+    url: ${MEMIND_TEST_DATASOURCE_URL:jdbc:postgresql://localhost:5432/memind_test}
+    driver-class-name: org.postgresql.Driver
+    username: ${MEMIND_DATASOURCE_USERNAME:memind}
+    password: ${MEMIND_DATASOURCE_PASSWORD:memind}
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+memind:
+  # 测试用更小的向量维度，加快构建
+  embedding-dimension: 256
+  llm:
+    # 测试环境不配置 API Key，验证规则抽取 + 本地特征哈希向量的降级链路
+    base-url: https://api.deepseek.com
+    api-key: ""
+    chat-model: ""
+    timeout-seconds: 5
+    temperature: 0.2
+    embedding:
+      # 显式强制本地：避免 mode=remote 的失败即报错策略打断测试
+      mode: local
+      base-url: ""
+      api-key: ""
+      model: ""
+      dimension: 256
+      timeout-ms: 5000
+      max-retries: 0
+  chat:
+    # 离线用例同样走完整编排：无 chat key → 降级分支，但仍会执行工具与写回
+    max-rounds: 4
+    tool-timeout-ms: 15000
+    writeback: true
+  extraction:
+    chunk-size: 1200
+    min-confidence: 0.5
+    max-items-per-chunk: 12
+  consolidation:
+    leaf-min-items: 2
+    branch-max-insights: 3
+    immediate: false
+    cron: "0 0 3 * * *"
+  retrieval:
+    vector-top-k: 20
+    bm25-top-k: 20
+    insight-top-k: 8
+    final-top-k: 15
+    rrf-k: 60
+    time-decay-half-life-days: 30
+    min-confidence: 0.35
+    # 本地特征哈希向量没有语义，余弦值既不可解释还可能为负，相关性闸门必须彻底关闭
+    min-relevance: -1.0
+    insight-budget-share: 0.45
+    context-token-budget: 1200
+    strategy: SIMPLE
+  storage:
+    vector-index: HNSW
+    ivfflat-lists: 100
+    hnsw-ef-search: 100
+
+logging:
+  level:
+    com.trae.memind: INFO

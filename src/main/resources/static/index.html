@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memind 记忆体验台</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2128;
+    --line: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --user: #3fb950;
+    --agent: #d29922;
+    --root: #f778ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { margin: 0; font-size: 16px; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  .badge {
+    padding: 2px 8px; border-radius: 10px; font-size: 12px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  }
+  .badge.ok { color: var(--user); border-color: #2ea04366; }
+  .badge.warn { color: var(--agent); border-color: #d2992266; }
+  main { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.3fr); gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .card h2 { margin: 0 0 10px; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 8px; }
+  label { color: var(--muted); font-size: 12px; }
+  input[type=text], select, textarea {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 9px; font: inherit; outline: none;
+  }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { width: 100%; min-height: 62px; resize: vertical; }
+  button {
+    background: #21262d; color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  button.primary:hover { background: #388bfd; color: #fff; }
+  .grow { flex: 1; min-width: 120px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .tabs button { border-radius: 6px 6px 0 0; }
+  .tabs button.active { background: var(--panel-2); border-color: var(--accent); color: var(--accent); }
+  .feed { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; max-height: 58vh; overflow: auto; }
+  .turn { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--panel-2); }
+  .turn.user { border-left-color: var(--user); }
+  .turn.agent { border-left-color: var(--agent); }
+  .turn .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .item { border-top: 1px dashed var(--line); padding: 6px 0; font-size: 13px; }
+  .item:first-of-type { border-top: none; }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 4px; background: #21262d; color: var(--muted); font-size: 11px; margin-right: 6px; }
+  .tag.leaf { color: var(--muted); }
+  .tag.branch { color: var(--agent); }
+  .tag.root { color: var(--root); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chips button { font-size: 12px; padding: 3px 8px; color: var(--muted); }
+  pre {
+    background: #010409; border: 1px solid var(--line); border-radius: 6px;
+    padding: 10px; white-space: pre-wrap; word-break: break-word; font-size: 12.5px; max-height: 46vh; overflow: auto;
+  }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+  .err { color: #ff7b72; font-size: 13px; }
+
+  /* -------- 流式聊天 -------- */
+  .chat-log {
+    display: flex; flex-direction: column; gap: 10px;
+    max-height: 52vh; overflow: auto; padding: 6px 2px;
+  }
+  .bubble {
+    border-radius: 10px; padding: 8px 10px; max-width: 88%;
+    white-space: pre-wrap; word-break: break-word; font-size: 13.5px;
+  }
+  .bubble.user { align-self: flex-end; background: #1f6feb26; border: 1px solid #1f6feb66; }
+  .bubble.agent { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--line); }
+  .toolcard {
+    width: 100%; border: 1px solid var(--line); border-left: 3px solid var(--agent);
+    border-radius: 6px; background: #010409; padding: 8px 10px; font-size: 12.5px;
+  }
+  .toolcard.failed { border-left-color: #ff7b72; }
+  .toolcard .head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .toolcard pre { margin: 6px 0 0; max-height: 18vh; }
+  details.mem, details.reason {
+    border: 1px dashed var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12.5px;
+  }
+  details.mem summary, details.reason summary { cursor: pointer; color: var(--muted); }
+  details.mem pre, details.reason pre { max-height: 30vh; margin: 6px 0 0; }
+  .cursor { color: var(--accent); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Memind <span>记忆体验台</span></h1>
+  <span class="badge" id="health">连接中…</span>
+  <label>租户 <input type="text" id="tenant" value="acme" size="8"></label>
+  <label>用户 <input type="text" id="user" value="u-100" size="8"></label>
+  <label>会话 <input type="text" id="session" value="web-session" size="10"></label>
+</header>
+
+<main>
+  <section class="card">
+    <h2>① 写入：像真实使用那样说一句话</h2>
+    <div class="row">
+      <label>作用域
+        <select id="writeScope">
+          <option value="USER">USER（用户的闲聊 / 偏好）</option>
+          <option value="AGENT">AGENT（工具 / skill 执行轨迹）</option>
+        </select>
+      </label>
+      <label>内容类型
+        <select id="contentType">
+          <option value="CONVERSATION">CONVERSATION</option>
+          <option value="TOOL_CALL">TOOL_CALL</option>
+          <option value="AGENT_TIMELINE">AGENT_TIMELINE</option>
+          <option value="DOCUMENT">DOCUMENT</option>
+        </select>
+      </label>
+    </div>
+    <div class="row"><textarea id="say" placeholder="例如：我是林悦，负责增长运营这块工作"></textarea></div>
+    <div class="row">
+      <button class="primary" id="send">发送并写入记忆</button>
+      <button id="consolidate">整合 Insight Tree</button>
+      <span id="writeHint" class="badge">未配置模型时走规则引擎</span>
+    </div>
+    <div class="chips" id="examples"></div>
+    <div class="feed" id="feed"></div>
+  </section>
+
+  <section class="card">
+    <div class="tabs">
+      <button data-tab="chat" class="active">流式聊天</button>
+      <button data-tab="memories">记忆清单</button>
+      <button data-tab="insight">Insight Tree</button>
+      <button data-tab="retrieve">检索召回</button>
+      <button data-tab="context">注入上下文</button>
+    </div>
+
+    <div data-panel="chat">
+      <div class="row">
+        <label>检索作用域
+          <select id="chatScopes">
+            <option value="USER,AGENT">USER + AGENT</option>
+            <option value="USER">仅 USER</option>
+            <option value="AGENT">仅 AGENT</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="chatTools" checked> 允许工具调用</label>
+        <label><input type="checkbox" id="chatWriteback" checked> 自动写回记忆</label>
+        <button id="clearChat">清空</button>
+        <span class="badge" id="chatStatus">就绪</span>
+      </div>
+      <div class="chat-log" id="chatLog">
+        <div class="empty">试试：「最近30天的 GMV 是多少？」「帮我出一份渠道维度的日报」「郑州今天天气怎么样？」</div>
+      </div>
+      <div class="row"><textarea id="chatInput" placeholder="说一句话，Ctrl+Enter 发送"></textarea></div>
+      <div class="row">
+        <button class="primary" id="chatSend">发送</button>
+        <span class="badge" id="chatHint">工具与 skill 由模型自主决定</span>
+      </div>
+    </div>
+
+    <div data-panel="memories" hidden>
+      <div class="row">
+        <label>作用域
+          <select id="memScope">
+            <option value="USER">USER</option>
+            <option value="AGENT">AGENT</option>
+          </select>
+        </label>
+        <button id="refreshMemories">刷新</button>
+        <button id="clearMemories">清空该命名空间</button>
+        <span class="badge" id="memCount">0 条</span>
+      </div>
+      <div id="memories" class="feed"></div>
+    </div>
+
+    <div data-panel="insight" hidden>
+      <div class="row">
+        <label>作用域
+          <select id="insightScope">
+            <option value="USER">USER</option>
+            <option value="AGENT">AGENT</option>
+          </select>
+        </label>
+        <button id="refreshInsight">刷新</button>
+        <span class="badge" id="insightHint">ROOT 是最高层理解</span>
+      </div>
+      <div id="insight" class="feed"></div>
+    </div>
+
+    <div data-panel="retrieve" hidden>
+      <div class="row">
+        <input type="text" id="query" class="grow" placeholder="试试：帮我看看数据">
+        <button class="primary" id="doRetrieve">检索</button>
+      </div>
+      <div id="retrieve" class="feed"></div>
+    </div>
+
+    <div data-panel="context" hidden>
+      <div class="row">
+        <input type="text" id="ctxQuery" class="grow" placeholder="试试：帮我看看数据">
+        <button class="primary" id="doCompile">生成上下文</button>
+      </div>
+      <div id="context" class="feed"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const HEADERS = () => ({
+  "Content-Type": "application/json",
+  "X-Tenant-Id": document.getElementById("tenant").value.trim(),
+  "X-User-Id": document.getElementById("user").value.trim(),
+  "X-Memory-Scope": document.getElementById("writeScope").value
+});
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { headers: HEADERS(), ...options });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`${response.status} ${text || response.statusText}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+function el(id) { return document.getElementById(id); }
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+}
+function confidence(value) { return (value * 100).toFixed(0) + "%"; }
+
+// ---------------------------------------------------------------- 健康状态
+async function loadHealth() {
+  try {
+    const health = await fetch("/open/v1/health").then(r => r.json());
+    el("health").textContent =
+      `chat=${health.chatAvailable ? "真实模型" : "规则降级"} · embedding=${health.embeddingRemote ? "真实模型" : "本地哈希"} · ${health.llmProvider}`;
+    el("health").className = "badge " + (health.chatAvailable && health.embeddingRemote ? "ok" : "warn");
+    el("writeHint").textContent = health.chatAvailable
+      ? "抽取由真实模型完成"
+      : "未配置 OPENAI_API_KEY：抽取走规则引擎，只能识别内置句式";
+    el("chatHint").textContent = health.chatAvailable
+      ? "工具与 skill 由模型自主决定"
+      : "未配置对话模型：聊天走离线降级应答（编排与写回仍完整执行）";
+  } catch (error) {
+    el("health").textContent = "服务不可达：" + error.message;
+    el("health").className = "badge warn";
+  }
+}
+
+// ---------------------------------------------------------------- 写入
+const EXAMPLES = {
+  USER: ["我是林悦，负责增长运营这块工作", "我偏好柱状图展示结果", "所有报表都要按渠道拆分",
+         "沟通的时候直接说结论就行", "销售额和订单量是我最关心的两个指标"],
+  AGENT: ["调用 query_sales 工具查询GMV，参数 metric=gmv, time_range=30d",
+          "查询GMV时优先使用 sales_order 表的 order_amount 字段",
+          "调用 gmv_report skill 生成渠道维度的日报，参数 group_by=channel",
+          "gmv_daily 汇总表查询超时失败，已改用 sales_order 明细表"]
+};
+
+function renderExamples() {
+  const scope = el("writeScope").value;
+  el("examples").innerHTML = EXAMPLES[scope]
+    .map(text => `<button data-fill="${esc(text)}">${esc(text.slice(0, 16))}…</button>`).join("");
+}
+
+el("writeScope").onchange = () => {
+  const agentSide = el("writeScope").value === "AGENT";
+  el("contentType").value = agentSide ? "TOOL_CALL" : "CONVERSATION";
+  renderExamples();
+};
+el("examples").onclick = event => {
+  const fill = event.target.dataset.fill;
+  if (fill) { el("say").value = fill; el("say").focus(); }
+};
+
+async function send() {
+  const content = el("say").value.trim();
+  if (!content) { return; }
+  const scope = el("writeScope").value;
+  const role = scope === "USER" ? "user" : "tool";
+  const body = {
+    sessionId: el("session").value.trim() || "web-session",
+    contentType: el("contentType").value,
+    messages: [{ role, content }],
+    scope
+  };
+  try {
+    const result = await api("/open/v1/memory/sync/extract", { method: "POST", body: JSON.stringify(body) });
+    el("feed").insertAdjacentHTML("afterbegin", `
+      <div class="turn ${scope === "USER" ? "user" : "agent"}">
+        <div class="meta">${scope} · ${body.contentType} · 抽取策略 ${esc(result.strategy)} · 新增 ${result.itemCount} 条</div>
+        <div>${esc(content)}</div>
+        ${result.items.map(item => `<div class="item"><span class="tag">${esc(item.type)}</span>${esc(item.content)} <span class="tag">${confidence(item.confidence)}</span></div>`).join("")
+          || `<div class="item err">未命中任何抽取规则（模型未配置时只识别内置句式）</div>`}
+      </div>`);
+    el("say").value = "";
+    await Promise.all([loadMemories(), loadInsight()]);
+  } catch (error) {
+    el("feed").insertAdjacentHTML("afterbegin", `<div class="turn"><div class="err">写入失败：${esc(error.message)}</div></div>`);
+  }
+}
+
+async function consolidate() {
+  const scope = el("writeScope").value;
+  try {
+    const result = await api(`/admin/v1/consolidate?scope=${scope}`, { method: "POST" });
+    el("feed").insertAdjacentHTML("afterbegin", `<div class="turn"><div class="meta">整合</div>${esc(result.message)}</div>`);
+    await Promise.all([loadInsight(), loadMemories()]);
+    document.querySelector('[data-tab="insight"]').click();
+  } catch (error) {
+    el("feed").insertAdjacentHTML("afterbegin", `<div class="turn"><div class="err">整合失败：${esc(error.message)}</div></div>`);
+  }
+}
+
+// ---------------------------------------------------------------- 流式聊天
+// 不能用 EventSource：它只支持 GET、无法携带 X-Tenant-Id 等自定义头，租户隔离会直接失效。
+// 这里是手工解析 SSE 报文的分帧逻辑（按空行切块、取 event 名、拼接多行 data）。
+let chatting = false;
+
+function parseSseBlock(block) {
+  let event = "message";
+  const dataLines = [];
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) { event = line.slice(6).trim(); }
+    else if (line.startsWith("data:")) { dataLines.push(line.slice(5).replace(/^ /, "")); }
+  }
+  if (dataLines.length === 0) { return null; }
+  try { return { event, data: JSON.parse(dataLines.join("\n")) }; }
+  catch (error) { return null; }
+}
+
+function scrollChat() { const log = el("chatLog"); log.scrollTop = log.scrollHeight; }
+
+function appendBubble(role, text) {
+  const placeholder = el("chatLog").querySelector(".empty");
+  if (placeholder) { placeholder.remove(); }
+  const bubble = document.createElement("div");
+  bubble.className = "bubble " + role;
+  bubble.textContent = text;
+  el("chatLog").appendChild(bubble);
+  scrollChat();
+}
+
+function createAgentTurn() {
+  const placeholder = el("chatLog").querySelector(".empty");
+  if (placeholder) { placeholder.remove(); }
+  const root = document.createElement("div");
+  root.className = "turn agent";
+  root.innerHTML = `
+    <div class="meta" data-role="meta">连接中…</div>
+    <div data-role="memories"></div>
+    <div data-role="reason"></div>
+    <div class="bubble agent" data-role="body"><span class="cursor" data-role="cursor"></span></div>
+    <div data-role="tools" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+    <div data-role="badges" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>`;
+  el("chatLog").appendChild(root);
+  scrollChat();
+  return {
+    root,
+    meta: root.querySelector('[data-role="meta"]'),
+    memories: root.querySelector('[data-role="memories"]'),
+    reason: root.querySelector('[data-role="reason"]'),
+    body: root.querySelector('[data-role="body"]'),
+    cursor: root.querySelector('[data-role="cursor"]'),
+    tools: root.querySelector('[data-role="tools"]'),
+    badges: root.querySelector('[data-role="badges"]'),
+    cards: new Map(),
+    text: "",
+    reasoning: "",
+    done: false
+  };
+}
+
+function appendText(turn, text) {
+  turn.text += text;
+  turn.cursor.insertAdjacentText("beforebegin", text);
+  scrollChat();
+}
+
+function appendReasoning(turn, text) {
+  if (!turn.reasoning) {
+    turn.reason.innerHTML = `<details class="reason"><summary></summary><pre data-role="rtext"></pre></details>`;
+    turn.rtext = turn.reason.querySelector('[data-role="rtext"]');
+    turn.summary = turn.reason.querySelector("summary");
+  }
+  turn.reasoning += text;
+  turn.rtext.textContent = turn.reasoning;
+  turn.summary.textContent = `思考过程 reasoning（${turn.reasoning.length} 字，默认收起）`;
+}
+
+function appendToolCard(turn, data) {
+  const card = document.createElement("div");
+  card.className = "toolcard";
+  card.innerHTML = `
+    <div class="head">
+      <span class="tag ${data.type === "SKILL" ? "branch" : ""}">${esc(data.type)}</span>
+      <b>${esc(data.name)}</b>
+      <span class="tag">第 ${data.round} 轮</span>
+      <span class="tag" data-role="state">执行中…</span>
+    </div>
+    <pre>${esc(data.arguments)}</pre>`;
+  turn.tools.appendChild(card);
+  turn.cards.set(data.id, card);
+  scrollChat();
+}
+
+function completeToolCard(turn, data) {
+  const card = turn.cards.get(data.id);
+  if (!card) { return; }
+  card.querySelector('[data-role="state"]').textContent = `${data.ok ? "成功" : "失败"} · ${data.elapsedMs}ms`;
+  if (!data.ok) { card.classList.add("failed"); }
+  card.insertAdjacentHTML("beforeend", `<pre>${esc(data.result)}</pre>`);
+  scrollChat();
+}
+
+function handleChatEvent(event, data, turn) {
+  if (event === "meta") {
+    turn.meta.innerHTML = `
+      <span class="tag">${esc(data.sessionId)}</span>
+      <span class="tag ${data.degraded ? "warn" : "ok"}">${data.degraded ? "离线降级" : "真实模型"}</span>
+      <span class="tag">注入 ${data.memoryCount} 记忆 / ${data.insightCount} 洞察</span>
+      <span class="tag">${data.estimatedTokens} tokens${data.truncated ? "（已裁剪）" : ""}</span>
+      <span class="tag">策略 ${esc(data.strategy)}</span>`;
+    const toolBlock = data.tools && data.tools.length
+      ? `<details class="mem"><summary>本轮可用 ${data.tools.length} 个工具 / skill</summary>
+           <pre>${esc(data.tools.map(t => `[${t.type}] ${t.name} —— ${t.description}`).join("\n"))}</pre></details>`
+      : `<div class="empty">本轮未开启工具调用</div>`;
+    turn.memories.innerHTML =
+      `<details class="mem"><summary>注入上下文（${data.memoryCount + data.insightCount} 条，点击展开）</summary>
+         <pre>${esc(data.context || "（暂无历史记忆）")}</pre></details>` + toolBlock;
+  } else if (event === "reasoning") {
+    appendReasoning(turn, data.text);
+  } else if (event === "delta") {
+    appendText(turn, data.text);
+  } else if (event === "tool_call") {
+    appendToolCard(turn, data);
+  } else if (event === "tool_result") {
+    completeToolCard(turn, data);
+  } else if (event === "done") {
+    turn.done = true;
+    turn.cursor.remove();
+    turn.badges.insertAdjacentHTML("beforeend", `
+      <span class="tag">${data.rounds} 轮</span>
+      <span class="tag">正文 ${data.contentChars} 字</span>
+      <span class="tag">思考 ${data.reasoningChars} 字</span>
+      <span class="tag">工具 ${data.toolCalls} 次</span>
+      <span class="tag">${data.elapsedMs}ms</span>`);
+  } else if (event === "writeback") {
+    turn.badges.insertAdjacentHTML("beforeend", `
+      <span class="tag user">写回 USER ${data.userItems} 条（${esc(data.userStatus)}）</span>
+      <span class="tag agent">写回 AGENT ${data.agentItems} 条（${esc(data.agentStatus)}）</span>`);
+    loadMemories();
+    loadInsight();
+  } else if (event === "error") {
+    turn.root.insertAdjacentHTML("beforeend", `<div class="err">[${esc(data.stage)}] ${esc(data.message)}</div>`);
+  }
+}
+
+async function sendChat() {
+  if (chatting) { return; }
+  const message = el("chatInput").value.trim();
+  if (!message) { return; }
+  const body = {
+    message,
+    sessionId: el("session").value.trim() || "web-chat",
+    scopes: el("chatScopes").value.split(","),
+    enableTools: el("chatTools").checked,
+    writeback: el("chatWriteback").checked
+  };
+
+  el("chatInput").value = "";
+  chatting = true;
+  el("chatSend").disabled = true;
+  el("chatStatus").textContent = "生成中…";
+  el("chatStatus").className = "badge warn";
+
+  appendBubble("user", message);
+  const turn = createAgentTurn();
+
+  try {
+    const response = await fetch("/open/v1/chat/stream", {
+      method: "POST", headers: HEADERS(), body: JSON.stringify(body)
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`${response.status} ${await response.text()}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) { break; }
+      buffer += decoder.decode(value, { stream: true });
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+        const block = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const parsed = parseSseBlock(block);
+        if (parsed) { handleChatEvent(parsed.event, parsed.data, turn); }
+      }
+    }
+    buffer += decoder.decode();
+    const tail = parseSseBlock(buffer);
+    if (tail) { handleChatEvent(tail.event, tail.data, turn); }
+    // 写回事件是在 done 之后补发的：没有它就说明流被中途掐断了。
+    if (!turn.badges.querySelector(".tag.user")) {
+      turn.badges.insertAdjacentHTML("beforeend", `<span class="tag">流已结束，未收到写回事件</span>`);
+    }
+  } catch (error) {
+    // done 已经收到，说明正文与工具结果都完整拿到了——此时连接被中止（控制台的
+    // net::ERR_ABORTED）只发生在收尾阶段，而服务端的记忆写回是独立跑完的，
+    // 渲染成「连接失败」会让人误以为这轮白聊了。
+    if (turn.done) {
+      turn.badges.insertAdjacentHTML("beforeend",
+        `<span class="tag warn">连接在收尾阶段被中止（${esc(error.name || "AbortError")}），本轮结果不受影响</span>`);
+      loadMemories();
+      loadInsight();
+    } else {
+      turn.root.insertAdjacentHTML("beforeend", `<div class="err">连接失败：${esc(error.message)}</div>`);
+    }
+  } finally {
+    if (turn.cursor.isConnected) { turn.cursor.remove(); }
+    chatting = false;
+    el("chatSend").disabled = false;
+    el("chatStatus").textContent = "就绪";
+    el("chatStatus").className = "badge";
+  }
+}
+
+// ---------------------------------------------------------------- 记忆清单
+async function loadMemories() {
+  const scope = el("memScope").value;
+  try {
+    const items = await api(`/admin/v1/memories?scope=${scope}`);
+    el("memCount").textContent = items.length + " 条";
+    el("memories").innerHTML = items.length === 0
+      ? `<div class="empty">该作用域还没有记忆。先到左侧写入一句话。</div>`
+      : items.map(item => `
+        <div class="item">
+          <span class="tag">${esc(item.type)}</span><span class="tag">${confidence(item.confidence)}</span>
+          ${esc(item.content)}
+        </div>`).join("");
+  } catch (error) {
+    el("memories").innerHTML = `<div class="err">加载失败：${esc(error.message)}</div>`;
+  }
+}
+
+async function clearMemories() {
+  const scope = el("memScope").value;
+  if (!confirm(`确定清空 ${scope} 命名空间下的全部记忆与洞察节点？此操作不可撤销。`)) { return; }
+  try {
+    const result = await api(`/admin/v1/memories?scope=${scope}`, { method: "DELETE" });
+    el("memCount").textContent = "0 条";
+    el("memories").innerHTML = `<div class="empty">${esc(result.message)}</div>`;
+    // 洞察节点是从记忆里提炼的，这里一并丢了，所以右侧面板也要跟着刷新
+    if (el("insightScope").value === scope) { loadInsight(); }
+  } catch (error) {
+    el("memories").innerHTML = `<div class="err">清空失败：${esc(error.message)}</div>`;
+  }
+}
+
+// ---------------------------------------------------------------- Insight Tree
+const LEVEL_ORDER = ["ROOT", "BRANCH", "LEAF"];
+const LEVEL_LABEL = { ROOT: "Root 跨维度理解", BRANCH: "Branch 跨组模式", LEAF: "Leaf 分组事实洞察" };
+
+async function loadInsight() {
+  const scope = el("insightScope").value;
+  try {
+    const tree = await api(`/admin/v1/insight?scope=${scope}`);
+    const groups = LEVEL_ORDER.map(level => [level, tree.nodes.filter(node => node.level === level)]);
+    el("insight").innerHTML = tree.nodes.length === 0
+      ? `<div class="empty">${esc(tree.namespace)} 尚无洞察节点。同一语义分组至少要有 2 条记忆才会提炼 Leaf。</div>`
+      : `<div class="item"><span class="tag">命名空间</span>${esc(tree.namespace)} · 作用域 ${esc(tree.scope)}</div>`
+        + groups.map(([level, nodes]) => nodes.length === 0 ? "" : `
+          <div class="item">
+            <span class="tag ${level.toLowerCase()}">${LEVEL_LABEL[level]}</span>
+            ${nodes.map(node => `
+              <div style="margin-top:6px">
+                <span class="tag">${esc(node.groupKey || "-")}</span>${esc(node.content)}
+                <span class="tag">${confidence(node.confidence)}</span>
+              </div>`).join("")}
+          </div>`).join("");
+  } catch (error) {
+    el("insight").innerHTML = `<div class="err">加载失败：${esc(error.message)}</div>`;
+  }
+}
+
+// ---------------------------------------------------------------- 检索
+async function doRetrieve() {
+  const query = el("query").value.trim();
+  if (!query) { return; }
+  try {
+    const result = await api("/open/v1/memory/retrieve", { method: "POST", body: JSON.stringify({ query }) });
+    el("retrieve").innerHTML = `
+      <div class="item">
+        <span class="tag">关键词</span>${esc(result.keywords.join(", ") || "-")}
+        <span class="tag">时间信号</span>${esc(result.timeSignals.join(", ") || "-")}
+        <span class="tag">实体</span>${esc(result.entities.join(", ") || "-")}
+      </div>
+      <div class="item"><span class="tag branch">洞察 ${result.insights.length}</span>
+        ${result.insights.map(insight => `<div style="margin-top:6px">
+          <span class="tag ${insight.level.toLowerCase()}">${esc(insight.level)}</span>${esc(insight.content)}</div>`).join("") || "-"}
+      </div>
+      <div class="item"><span class="tag user">记忆 ${result.memories.length}</span>
+        ${result.memories.map(memory => `<div style="margin-top:6px">
+          <span class="tag">${esc(memory.type)}</span><span class="tag">${esc(memory.scope)}</span>
+          ${esc(memory.content)} <span class="tag">${esc(memory.channels.join("+"))} · ${memory.score}</span></div>`).join("") || "-"}
+      </div>`;
+  } catch (error) {
+    el("retrieve").innerHTML = `<div class="err">检索失败：${esc(error.message)}</div>`;
+  }
+}
+
+// ---------------------------------------------------------------- 上下文
+async function doCompile() {
+  const query = el("ctxQuery").value.trim();
+  if (!query) { return; }
+  try {
+    const result = await api("/open/v1/memory/compile_context", { method: "POST", body: JSON.stringify({ query }) });
+    el("context").innerHTML = `
+      <div class="item">
+        <span class="tag">${result.estimatedTokens} tokens</span>
+        <span class="tag">${result.memoryCount} 记忆 + ${result.insightCount} 洞察</span>
+        <span class="tag">${result.truncated ? "已按预算裁剪" : "未裁剪"}</span>
+      </div>
+      <pre>${esc(result.context)}</pre>`;
+  } catch (error) {
+    el("context").innerHTML = `<div class="err">生成失败：${esc(error.message)}</div>`;
+  }
+}
+
+// ---------------------------------------------------------------- 交互绑定
+document.querySelectorAll(".tabs button").forEach(button => {
+  button.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach(other => other.classList.toggle("active", other === button));
+    document.querySelectorAll("[data-panel]").forEach(panel => { panel.hidden = panel.dataset.panel !== button.dataset.tab; });
+    if (button.dataset.tab === "memories") { loadMemories(); }
+    if (button.dataset.tab === "insight") { loadInsight(); }
+    if (button.dataset.tab === "retrieve" && !el("query").value) { el("query").value = "帮我看看数据"; }
+    if (button.dataset.tab === "context" && !el("ctxQuery").value) { el("ctxQuery").value = "帮我看看数据"; }
+  };
+});
+el("send").onclick = send;
+el("consolidate").onclick = consolidate;
+el("refreshMemories").onclick = loadMemories;
+el("clearMemories").onclick = clearMemories;
+el("refreshInsight").onclick = loadInsight;
+el("memScope").onchange = loadMemories;
+el("insightScope").onchange = loadInsight;
+el("doRetrieve").onclick = doRetrieve;
+el("doCompile").onclick = doCompile;
+el("chatSend").onclick = sendChat;
+el("clearChat").onclick = () => {
+  el("chatLog").innerHTML = `<div class="empty">试试：「最近30天的 GMV 是多少？」「帮我出一份渠道维度的日报」「郑州今天天气怎么样？」</div>`;
+};
+el("chatInput").addEventListener("keydown", event => { if (event.ctrlKey && event.key === "Enter") { sendChat(); } });
+el("say").addEventListener("keydown", event => { if (event.ctrlKey && event.key === "Enter") { send(); } });
+el("query").addEventListener("keydown", event => { if (event.key === "Enter") { doRetrieve(); } });
+el("ctxQuery").addEventListener("keydown", event => { if (event.key === "Enter") { doCompile(); } });
+
+renderExamples();
+loadHealth();
+loadMemories();
+loadInsight();
+</script>
+</body>
+</html>

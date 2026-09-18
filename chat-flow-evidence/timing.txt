@@ -1,0 +1,25 @@
+流式聊天轨实测耗时（session=probe-0917-165744，model=chat=openai-compatible:https://llm-le499bxihbee1gji.cn-beijing.maas.aliyuncs.com/compatible-mode/v1#qwen3.7-flash, embedding=openai-compatible:http://192.168.0.237:21434/v1#qllama/bge-large-zh-v1.5:latest）
+
+第 1 轮：我是林悦，做增长运营的，以后给我数据尽量用柱状图这种图表口径。最近30天的GMV是多少？
+  meta 首帧                 415 ms
+  首个 reasoning（思维链）   1174 ms
+  首个 delta（正文首字）     7897 ms
+  完成（done）              8904 ms
+  思维链 666 字符 / 119 帧，正文 86 字符 / 18 帧
+  工具调用 1 次
+    - query_sales [TOOL] ok=True 0ms args={"metric": "gmv", "time_range": "30d"}
+  写回：已写回 USER 1 条 / AGENT 3 条
+
+第 2 轮：帮我出一份渠道维度的日报
+  meta 首帧                 328 ms
+  首个 reasoning（思维链）   707 ms
+  首个 delta（正文首字）     4138 ms
+  完成（done）              6624 ms
+  思维链 373 字符 / 59 帧，正文 273 字符 / 56 帧
+  工具调用 1 次
+    - gmv_report [SKILL] ok=True 0ms args={"group_by": "channel"}
+  写回：已写回 USER 4 条 / AGENT 3 条
+
+记忆条数变化
+  USER  ：before=23 → after-round1=24 → after-round2=28
+  AGENT ：before=24 → after-round1=27 → after-round2=30
